@@ -47,7 +47,7 @@ export const SignUpUser = async (req, res) => {
     await sendEmail({
       sendTo: email,
       subject: "Verify your email from MinimalMart",
-      html: verifyEmailTemplate(username, verifyEmailUrl),
+      html: verifyEmailTemplate({ username, url: verifyEmailUrl })
     });
 
     // Respond with success

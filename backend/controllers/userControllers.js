@@ -67,3 +67,47 @@ const verifyEmailUrl = `${process.env.FRONTEND_URL}/verify-email?code=${savedUse
     });
   }
 };
+
+ 
+export const verifyEmailController = async (req, res) => {
+  try {
+    const { code } = req.body;
+
+    if (!code) {
+      return res.status(400).json({
+        success: false,
+        message: "Verification code is required.",
+      });
+    }
+
+    const user = await User.findById(code);
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid verification code.",
+      });
+    }
+
+    if (user.verify_email) {
+      return res.status(200).json({
+        success: true,
+        message: "Email already verified.",
+      });
+    }
+
+    user.verify_email = true;
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Email verified successfully.",
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Server error. Please try again later.",
+    });
+  }
+};

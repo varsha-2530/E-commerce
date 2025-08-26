@@ -41,13 +41,15 @@ export const SignUpUser = async (req, res) => {
     const savedUser = await newUser.save();
 
     // Generate verification URL
-    const verifyEmailUrl = `${process.env.FRONTEND_URL}/verify-email?code=${savedUser._id}`;
+const verifyEmailUrl = `${process.env.FRONTEND_URL}/verify-email?code=${savedUser._id}`;
+//console.log("Verification URL:", verifyEmailUrl);
+
 
     // Send verification email
     await sendEmail({
       sendTo: email,
       subject: "Verify your email from MinimalMart",
-      html: verifyEmailTemplate({ username, url: verifyEmailUrl })
+      html: verifyEmailTemplate({ username, url: verifyEmailUrl }) 
     });
 
     // Respond with success

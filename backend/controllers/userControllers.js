@@ -2,6 +2,8 @@ import sendEmail from "../config/sendEmail.js";
 import User from "../model/user.js";
 import bcrypt from "bcrypt";
 import verifyEmailTemplate from "../utils/verifyEmailTemplate.js";
+import generatedAccessToken from "../utils/generatedAccessToken.js";
+import genertedRefreshToken from "../utils/genertedRefreshToken.js";
 
 export const SignUpUser = async (req, res) => {
   try {
@@ -41,15 +43,14 @@ export const SignUpUser = async (req, res) => {
     const savedUser = await newUser.save();
 
     // Generate verification URL
-const verifyEmailUrl = `${process.env.FRONTEND_URL}/verify-email?code=${savedUser._id}`;
-//console.log("Verification URL:", verifyEmailUrl);
-
+    const verifyEmailUrl = `${process.env.FRONTEND_URL}/verify-email?code=${savedUser._id}`;
+    //console.log("Verification URL:", verifyEmailUrl);
 
     // Send verification email
     await sendEmail({
       sendTo: email,
       subject: "Verify your email from MinimalMart",
-      html: verifyEmailTemplate({ username, url: verifyEmailUrl }) 
+      html: verifyEmailTemplate({ username, url: verifyEmailUrl }),
     });
 
     // Respond with success
@@ -58,7 +59,6 @@ const verifyEmailUrl = `${process.env.FRONTEND_URL}/verify-email?code=${savedUse
       message: "User registered successfully. Verification email sent.",
       data: savedUser,
     });
-
   } catch (error) {
     console.error("Signup Error:", error);
     return res.status(500).json({
@@ -68,7 +68,6 @@ const verifyEmailUrl = `${process.env.FRONTEND_URL}/verify-email?code=${savedUse
   }
 };
 
- 
 export const verifyEmailController = async (req, res) => {
   try {
     const { code } = req.body;
@@ -103,11 +102,73 @@ export const verifyEmailController = async (req, res) => {
       success: true,
       message: "Email verified successfully.",
     });
-
   } catch (error) {
     return res.status(500).json({
       success: false,
       message: error.message || "Server error. Please try again later.",
+    });
+  }
+};
+export const login = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({
+        message: "Please provide both email and password.",
+        error: true,
+        success: false
+      });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: "User is not registered.",
+      });
+    }
+
+    if (user.status !== "Active") {
+      return res.status(400).json({
+        success: false,
+        message: "Account is not active. Please contact the administrator.",
+      });
+    }
+
+    const checkPassword = await bcrypt.compare(password, user.password);
+    if (!checkPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "Incorrect password. Please try again.",
+      });
+    }
+
+    const accesstoken = await generatedAccessToken(user._id);
+    const refreshToken = await genertedRefreshToken(user._id);
+
+    const cookiesOption = {
+      httpOnly: true,
+      secure: true,
+      sameSite: "None",
+    };
+    res.cookie("accessToken", accesstoken, cookiesOption);
+    res.cookie("refreshToken", refreshToken, cookiesOption);
+
+    return res.status(200).json({
+      success: true,
+      message: "Login successful.",
+      data: {
+        accesstoken,
+        refreshToken
+      }
+    });
+
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({
+      success: false,
+      message: "Login failed. Please try again later.",
     });
   }
 };

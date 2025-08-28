@@ -4,6 +4,7 @@ import bcrypt from "bcrypt";
 import verifyEmailTemplate from "../utils/verifyEmailTemplate.js";
 import generatedAccessToken from "../utils/generatedAccessToken.js";
 import genertedRefreshToken from "../utils/genertedRefreshToken.js";
+import uploadImageClodinary from "../utils/uploadImageClodinary.js";
 
 export const SignUpUser = async (req, res) => {
   try {
@@ -109,6 +110,7 @@ export const verifyEmailController = async (req, res) => {
     });
   }
 };
+
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -117,7 +119,7 @@ export const login = async (req, res) => {
       return res.status(400).json({
         message: "Please provide both email and password.",
         error: true,
-        success: false
+        success: false,
       });
     }
 
@@ -160,15 +162,88 @@ export const login = async (req, res) => {
       message: "Login successful.",
       data: {
         accesstoken,
-        refreshToken
-      }
+        refreshToken,
+      },
     });
-
   } catch (error) {
     console.log(error);
     res.status(500).json({
       success: false,
       message: "Login failed. Please try again later.",
+    });
+  }
+};
+
+export const logout = async (req, res) => {
+  try {
+    const userid = req.userId;
+    console.log("Logging out user:", req.userId);
+
+    const cookiesOption = {
+      httpOnly: true,
+      secure: true,
+      sameSite: "None",
+    };
+
+    // Clear cookies
+    res.clearCookie("accessToken", cookiesOption);
+    res.clearCookie("refreshToken", cookiesOption);
+
+    // Remove refresh token from DB
+    await User.findByIdAndUpdate(userid, {
+      refresh_token: "",
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Logout Successfully!",
+    });
+  } catch (error) {
+    console.error("Logout Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Something went wrong!",
+    });
+  }
+};
+export const uploadAvatar = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const image = req.file;
+
+    if (!image) {
+      return res.status(400).json({
+        success: false,
+        message: "No file provided",
+      });
+    }
+
+    // ✅ Pehle upload karo Cloudinary pe
+    const upload = await uploadImageClodinary(image);
+
+    // ✅ Phir user document update karo
+    const updateUser = await User.findByIdAndUpdate(
+      userId,
+      {
+        avatar: upload.url,
+      },
+      { new: true } // optional: to return updated user
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Avatar uploaded successfully",
+      data: {
+        _id: userId,
+        avatar: upload.url,
+      },
+    });
+
+  } catch (error) {
+    console.log("Upload Avatar Error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Something went wrong",
     });
   }
 };

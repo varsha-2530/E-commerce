@@ -5,6 +5,8 @@ import verifyEmailTemplate from "../utils/verifyEmailTemplate.js";
 import generatedAccessToken from "../utils/generatedAccessToken.js";
 import genertedRefreshToken from "../utils/genertedRefreshToken.js";
 import uploadImageClodinary from "../utils/uploadImageClodinary.js";
+import generatedOtp from "../utils/generatedOtp.js";
+import forgotPasswordTemplate from "../utils/forgotPasswordTemplate.js";
 
 export const SignUpUser = async (req, res) => {
   try {
@@ -206,6 +208,7 @@ export const logout = async (req, res) => {
     });
   }
 };
+
 export const uploadAvatar = async (req, res) => {
   try {
     const userId = req.userId;
@@ -238,12 +241,203 @@ export const uploadAvatar = async (req, res) => {
         avatar: upload.url,
       },
     });
-
   } catch (error) {
     console.log("Upload Avatar Error:", error);
     res.status(500).json({
       success: false,
       message: "Something went wrong",
+    });
+  }
+};
+
+export const EditUserProfile = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { username, email, password, phone } = req.body;
+
+    let hashedPassword; // ✅ Declare it here
+
+    if (password) {
+      const salt = await bcrypt.genSalt(10);
+      hashedPassword = await bcrypt.hash(password, salt);
+    }
+
+    const updateUser = await User.updateOne(
+      { _id: userId },
+      {
+        ...(username && { username }),
+        ...(email && { email }),
+        ...(phone && { phone }),
+        ...(password && { password: hashedPassword }),
+      }
+    );
+
+    return res.json({
+      message: "Updated successfully",
+      error: false,
+      success: true,
+      data: updateUser,
+    });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({
+      success: false,
+      message: "something wrong",
+    });
+  }
+};
+
+export const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    // console.log("BODY:", req.body);
+
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(400).json({
+        message: "Email not available",
+        error: true,
+        success: false,
+      });
+    }
+
+    const otp = generatedOtp();
+    const expireTime = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    await User.findByIdAndUpdate(user._id, {
+      forgot_password_otp: otp,
+      forgot_password_expiry: expireTime,
+    });
+
+    await sendEmail({
+      sendTo: email,
+      subject: "Forgot password from MinimalMart",
+      html: forgotPasswordTemplate({
+        username: user.username,
+        otp: otp,
+      }),
+    });
+
+    return res.json({
+      message: "Check your email",
+      error: false,
+      success: true,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: error.message || error,
+      error: true,
+      success: false,
+    });
+  }
+};
+
+export const verifyForgotPasswordOtp = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+    //console.log("BODY :", req.body);
+
+    const user = await User.findOne({ email });
+
+    if (!email || !otp) {
+      return res.status(400).json({
+        message: "Provide required field email, otp.",
+        error: true,
+        success: false,
+      });
+    }
+
+    if (!user) {
+      return res.status(400).json({
+        message: "Email not available",
+        error: true,
+        success: false,
+      });
+    }
+
+    const currentTime = new Date().toISOString()
+
+    if (user.forgot_password_expiry < currentTime) {
+      return res.status(400).json({
+        message: "Otp is expired",
+        error: true,
+        success: false,
+      });
+    }
+
+    if (otp !== user.forgot_password_otp) {
+      return res.status(400).json({
+        message: "Invalid otp",
+        error: true,
+        success: false,
+      });
+    }
+
+    //   const updateUser = await User.findByIdAndUpdate(user?._id,{
+    //     forgot_password_otp : "",
+    //     forgot_password_expiry : ""
+    // })
+
+    return res.json({
+      message: "Verify otp successfully",
+      error: false,
+      success: true,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: error.message || error,
+      error: true,
+      success: false,
+    });
+  }
+};
+
+export const resetPassword = async (req, res) => {
+  try {
+    const { email, newPassword, confirmPassword } = req.body;
+
+    if (!email || !newPassword || !confirmPassword) {
+      return res.status(400).json({
+        message: "provide required fields email, newPassword, confirmPassword",
+      });
+    }
+
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(400).json({
+        message: "Email is not available",
+        error: true,
+        success: false,
+      });
+    }
+
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({
+        message: "newPassword and confirmPassword must be same.",
+        error: true,
+        success: false,
+      });
+    }
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+    const update = await User.findOneAndUpdate(user._id, {
+      password: hashedPassword,
+    });
+
+    return res.json({
+      message: "Password updated successfully.",
+      error: false,
+      success: true,
+    });
+
+    
+  } catch (error) {
+    return res.status(500).json({
+      message: error.message || error,
+      error: true,
+      success: false,
     });
   }
 };
